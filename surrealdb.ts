@@ -1,14 +1,24 @@
-export const setupSurrealdb = async (vpc: sst.aws.Vpc) => {
+import * as pulumi from "@pulumi/pulumi";
+import * as aws from "@pulumi/aws";
+import * as eks from "@pulumi/eks";
+import * as kubernetes from "@pulumi/kubernetes";
+
+export interface SurrealdbDeploymentOutput {
+	kubeconfig: pulumi.Output<any>;
+	surrealdbEndpoint?: pulumi.Output<string>;
+}
+
+export const setupSurrealdb = async (vpc: any): Promise<SurrealdbDeploymentOutput> => {
 	const cluster = new eks.Cluster("SurrealDBCluster", {
 		vpcId: vpc.id,
-		subnetIds: vpc.publicSubnets,
+		subnetIds: vpc.publicSubnets || vpc.subnets,
 		instanceType: "t3.medium",
 		desiredCapacity: 1,
 		minSize: 1,
 		maxSize: 1,
 		storageClasses: "gp3",
 		skipDefaultNodeGroup: false,
-		clusterSecurityGroup: vpc.nodes.securityGroup,
+		clusterSecurityGroup: vpc.nodes?.securityGroup || undefined,
 	});
 
 	const ebsCsiDriverAddon = new eks.Addon("aws-ebs-csi-driver", {
@@ -23,7 +33,6 @@ export const setupSurrealdb = async (vpc: sst.aws.Vpc) => {
 	const pdNodeGroup = new eks.ManagedNodeGroup("pd-nodegroup", {
 		cluster: cluster,
 		nodeGroupName: "pd-nodes",
-		// Recommended: ["c7g.xlarge"]
 		instanceTypes: ["t4g.small"],
 		amiType: "AL2023_ARM_64_STANDARD",
 		scalingConfig: {
@@ -33,7 +42,7 @@ export const setupSurrealdb = async (vpc: sst.aws.Vpc) => {
 		},
 		labels: { dedicated: "pd" },
 		taints: [{ key: "dedicated", value: "pd", effect: "NO_SCHEDULE" }],
-		subnetIds: vpc.publicSubnets,
+		subnetIds: vpc.publicSubnets || vpc.subnets,
 		nodeRoleArn: instanceRoleArn,
 	});
 
@@ -41,7 +50,6 @@ export const setupSurrealdb = async (vpc: sst.aws.Vpc) => {
 	const tidbNodeGroup = new eks.ManagedNodeGroup("tidb-nodegroup", {
 		cluster: cluster,
 		nodeGroupName: "tidb-nodes",
-		// Recommended: ["c7g.4xlarge"]
 		instanceTypes: ["t4g.medium"],
 		amiType: "AL2023_ARM_64_STANDARD",
 		scalingConfig: {
@@ -51,7 +59,7 @@ export const setupSurrealdb = async (vpc: sst.aws.Vpc) => {
 		},
 		labels: { dedicated: "tidb" },
 		taints: [{ key: "dedicated", value: "tidb", effect: "NO_SCHEDULE" }],
-		subnetIds: vpc.publicSubnets,
+		subnetIds: vpc.publicSubnets || vpc.subnets,
 		nodeRoleArn: instanceRoleArn,
 	});
 
@@ -59,7 +67,6 @@ export const setupSurrealdb = async (vpc: sst.aws.Vpc) => {
 	const tikvNodeGroup = new eks.ManagedNodeGroup("tikv-nodegroup", {
 		cluster: cluster,
 		nodeGroupName: "tikv-nodes",
-		// Recommended: ["m7g.4xlarge"]
 		instanceTypes: ["m7g.medium"],
 		amiType: "AL2023_ARM_64_STANDARD",
 		scalingConfig: {
@@ -69,7 +76,7 @@ export const setupSurrealdb = async (vpc: sst.aws.Vpc) => {
 		},
 		labels: { dedicated: "tikv" },
 		taints: [{ key: "dedicated", value: "tikv", effect: "NO_SCHEDULE" }],
-		subnetIds: vpc.publicSubnets,
+		subnetIds: vpc.publicSubnets || vpc.subnets,
 		nodeRoleArn: instanceRoleArn,
 	});
 
